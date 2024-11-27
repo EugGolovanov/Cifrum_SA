@@ -2,7 +2,7 @@ from torch import nn
 import torch
 from transformers import AutoTokenizer, BertModel
 from torch.utils.data import Dataset, DataLoader
-
+from tqdm import tqdm
 
 class BertCLS(nn.Module):
     def __init__(self, model, n_classes):
@@ -17,20 +17,6 @@ class BertCLS(nn.Module):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_name = "blanchefort/rubert-base-cased-sentiment-rusentiment"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-# Чистая модель
-model = BertModel.from_pretrained(
-            model_name, 
-            ignore_mismatched_sizes=True, 
-            num_labels=3
-        )
-bert_cls = BertCLS(model, n_classes=3)
-bert_cls.to(device)
-'''
-with open('path2model/bert_model.pkl', 'rb') as f:
-    bert_cls = pickle.load(f)
-'''
-
 
 class ClassificationDataset(Dataset):
     def __init__(self, data):
@@ -84,7 +70,7 @@ def test(model, loader, device):
     return pred
 
 
-def predict(text):
+def predict(text, bert_cls):
     inputs = tokenizer(text, max_length=512, padding=True, truncation=True, return_tensors='pt')
     outputs = bert_cls(**inputs)
     predicted = torch.nn.functional.softmax(outputs.logits, dim=1)

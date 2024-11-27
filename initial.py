@@ -6,6 +6,8 @@ from deeppavlov import build_model
 from transformers import AutoTokenizer, BertModel, AutoModelForSequenceClassification
 from torch import nn
 import pickle
+import numpy as np
+import random
 
 
 class BertCLS(nn.Module):
@@ -29,20 +31,22 @@ def set_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
 
-def init():
+def init(flag):
     clear_cache()
     set_seed(42)
     nltk.download('stopwords')
     torch.manual_seed(42)
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
-    ner_model = build_model('ner_collection3_bert', download=True, install=True)
-    sa1_model = build_model('sentiment_twitter', download=True, install=True)
-    sa2_model = build_model('rusentiment_convers_bert', download=True, install=True)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_name = "blanchefort/rubert-base-cased-sentiment-rusentiment"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     with open('path2model/bert_model.pkl', 'rb') as f:
         bert_cls = pickle.load(f)
-    
-    return ner_model, sa1_model, sa2_model, bert_cls, tokenizer
+    if flag:
+        ner_model = build_model('ner_collection3_bert', download=True, install=True)
+        sa1_model = build_model('sentiment_twitter', download=True, install=True)
+        sa2_model = build_model('rusentiment_convers_bert', download=True, install=True)
+        return ner_model, sa1_model, sa2_model, bert_cls, device
+    else:
+        return bert_cls, device
 
