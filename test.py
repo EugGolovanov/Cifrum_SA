@@ -3,6 +3,7 @@ from inference import ClassificationDataset, get_loader, test, predict
 from initial import init
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 name2int = {
     'neutral': 0,
     'positive': 1,
@@ -43,14 +44,14 @@ async def predict_sentiment(request: SentimentRequest):
             predictions = test(bert_cls, dataloader, device)
     else:
         if len(reviews) < 16: #
-            predictions_sa0 = [predict(preprocessed_reviews[i]) for i in range(len(preprocessed_reviews))]
+            predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
         else:
             dataset = ClassificationDataset(preprocessed_reviews)
             dataloader = get_loader(dataset, shuffle=False, batch_size=32)
             predictions_sa0 = test(bert_cls, dataloader, device)
-        ner_model_preds, sa1_model_preds, sa2_model_preds = ner_model(preprocessed_reviews), sa1_model(preprocessed_reviews), sa2_model(preprocessed_reviews)
-        sa1_model_preds, sa2_model_preds =  \
+            ner_model_preds, sa1_model_preds, sa2_model_preds = ner_model(preprocessed_reviews), sa1_model(preprocessed_reviews), sa2_model(preprocessed_reviews)
+            sa1_model_preds, sa2_model_preds =  \
             [name2int[sa1_model_preds[i]] for i in range(len(sa1_model_preds))], \
                 [name2int[sa2_model_preds[i]] for i in range(len(sa2_model_preds))]
-        predictions = (sa1_model_preds + predictions_sa0-1) *0.33/2 + sa2_model_preds
+            predictions = (sa1_model_preds + predictions_sa0-1) *0.33/2 + sa2_model_preds
     return {"sentiments": predictions}

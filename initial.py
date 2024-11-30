@@ -40,8 +40,10 @@ def init(flag):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_name = "blanchefort/rubert-base-cased-sentiment-rusentiment"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    with open('path2model/bert_model.pkl', 'rb') as f:
-        bert_cls = pickle.load(f)
+    bert_cls = AutoModelForSequenceClassification.from_pretrained('blanchefort/rubert-base-cased-sentiment-rusentiment', return_dict=True)
+    #with open('path2model/bert_model.pkl', 'rb') as f:
+        #bert_cls = pickle.load(f)
+    
     if flag:
         ner_model = build_model('ner_collection3_bert', download=True, install=True)
         sa1_model = build_model('sentiment_twitter', download=True, install=True)

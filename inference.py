@@ -65,7 +65,7 @@ def test(model, loader, device):
         for batch_idx, data in enumerate(pbar):
             data = data.to(device)
             embeddings = model(data)
-            pred.extend(embeddings.argmax(-1).detach().cpu().numpy())
+            pred.extend(embeddings.argmax(-1).detach().cpu().numpy().tolist())
 
     return pred
 
@@ -74,6 +74,6 @@ def predict(text, bert_cls):
     inputs = tokenizer(text, max_length=512, padding=True, truncation=True, return_tensors='pt')
     outputs = bert_cls(**inputs)
     predicted = torch.nn.functional.softmax(outputs.logits, dim=1)
-    predicted = torch.argmax(predicted, dim=1).numpy()
+    predicted = torch.argmax(predicted, dim=1).numpy().tolist()
     return predicted
 
