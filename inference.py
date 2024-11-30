@@ -1,8 +1,9 @@
-from torch import nn
 import torch
-from transformers import AutoTokenizer, BertModel
+from torch import nn
+from transformers import AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
+
 
 class BertCLS(nn.Module):
     def __init__(self, model, n_classes):
@@ -17,6 +18,7 @@ class BertCLS(nn.Module):
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model_name = "blanchefort/rubert-base-cased-sentiment-rusentiment"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+
 
 class ClassificationDataset(Dataset):
     def __init__(self, data):
@@ -33,16 +35,9 @@ class ClassificationDataset(Dataset):
 
 
 def collate_fn(batch):
-    model_input = []
-    # model_target = []
-    for text in batch:
-        model_input.append(text)
-        # model_target.append(target)
-
-    tok = tokenizer(model_input, padding=True,
-                    max_length=300, truncation=True,
-                    return_tensors='pt')
-    return tok
+    model_input = [text for text in batch]
+    tok = tokenizer(model_input, padding=True, max_length=300, truncation=True, return_tensors='pt')
+    return {key: value.to(device) for key, value in tok.items()}  # Перемещение на устройство
 
 
 def get_loader(dataset, shuffle, batch_size):
@@ -59,14 +54,14 @@ def get_loader(dataset, shuffle, batch_size):
 
 def test(model, loader, device):
     pred = []
+    model = model.to(device)
     model.eval()
     with torch.no_grad():
         pbar = tqdm(loader)
         for batch_idx, data in enumerate(pbar):
-            data = data.to(device)
-            embeddings = model(data)
-            pred.extend(embeddings.argmax(-1).detach().cpu().numpy().tolist())
-
+            data = {key: value.to(device) for key, value in data.items()}
+            outputs = model(**data)
+            pred.extend(outputs.logits.argmax(-1).detach().cpu().numpy().tolist())
     return pred
 
 
@@ -76,4 +71,3 @@ def predict(text, bert_cls):
     predicted = torch.nn.functional.softmax(outputs.logits, dim=1)
     predicted = torch.argmax(predicted, dim=1).numpy().tolist()
     return predicted
-
