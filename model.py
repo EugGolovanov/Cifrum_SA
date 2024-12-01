@@ -55,13 +55,20 @@ async def predict_sentiment(request: SentimentRequest):
     # Предсказание тональности
         if len(reviews) < 16:
             predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
+            # Разделение отзывов на положительные и отрицательные
+            positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 1]
+            negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
         else:
             dataset = ClassificationDataset(df_reviews)
             dataloader = get_loader(dataset, shuffle=False, batch_size=32)
             predictions = test(bert_cls, dataloader, device)
+            positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 1]
+            negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
     else:
         if len(reviews) < 16: 
             predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
+            positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 1]
+            negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
         else:
             dataset = ClassificationDataset(df_reviews)
             dataloader = get_loader(dataset, shuffle=False, batch_size=32)
@@ -72,23 +79,20 @@ async def predict_sentiment(request: SentimentRequest):
             predictions_sa0 = np.array(predictions_sa0)
             predictions = (sa1_model_preds + predictions_sa0-1) * 0.33/2
             predictions = predictions.tolist()
-            print(predictions)
+            positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 0.33]
+            negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 0.495]
     
-    # Разделение отзывов на положительные и отрицательные
-    positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 1]
-    negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
-
     topics_pos = None
     topics_neg = None
     response = None
-
+    
     # Анализ топиков только для больших наборов отзывов
-    if len(positive_reviews) > 16:
+    if len(positive_reviews) > 15:
         topic_model_pos = BERTopic(language="multilingual")
         topic_model_pos.fit_transform(positive_reviews)
         topics_pos = topic_model_pos.get_topic_info()['Representative_Docs'][:7].values.tolist()
 
-    if len(negative_reviews) > 16:
+    if len(negative_reviews) > 15:
         topic_model_neg = BERTopic(language="multilingual")
         topic_model_neg.fit_transform(negative_reviews)
         topics_neg = topic_model_neg.get_topic_info()['Representative_Docs'][:7].values.tolist()
@@ -103,7 +107,7 @@ async def predict_sentiment(request: SentimentRequest):
             Разработай рекомендации для маркетингового отдела. Старайся аргументировать свой ответ.
         """
         query = generate_query(topics_pos_str, topics_neg_str)
-        account = YandexGPTLite("b1***********", 'y0_Ag***********************')
+        account = YandexGPTLite("b1g***************", 'y0_A********************************')
         response = account.create_completion(query, '0.6', system_prompt = prompt)
         response = response.strip()
 
@@ -113,5 +117,3 @@ async def predict_sentiment(request: SentimentRequest):
         "negative_topics": topics_neg,
         "yandex_gpt_response": response
     }
-    
-
