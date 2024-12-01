@@ -1,16 +1,20 @@
 import re
 import pandas as pd
+import numpy as np
 from inference import ClassificationDataset, get_loader, test, predict
 from initial import init
 from fastapi import FastAPI
 from pydantic import BaseModel
 from bertopic import BERTopic
-from langchain_community.llms import YandexGPT
-from langchain_core.prompts import PromptTemplate
-from create_iam_token import get_iam_token
+from yandexgptlite import YandexGPTLite
 
 p_d = './,][-")(~!#@^%$;*?&№∙^:<:>=_+\|`1°234}{567890'
 
+name2int = {
+    'Neutral': 0,
+    'Positive': 1,
+    'Negative': 2
+}
 
 def preprocess(text):
     output = text.replace('\n', ' ').replace('\t', ' ').replace('\u200c', ' ')
@@ -21,8 +25,19 @@ def preprocess(text):
     output = output.replace('  ', ' ')
     return output.strip()
 
+flag = False
+if flag:
+    bert_cls, device = init(flag)
+else:
+    ner_model, sa1_model, bert_cls, device = init(flag)
 
-bert_cls, device = init()
+
+# Подготовка шаблона для генерации текста
+def generate_query(topics_pos, topics_neg):
+    template = """Положительные отзывы: {topics_pos}\n\nОтрицательные отзывы: {topics_neg}"""
+    return template.format(topics_pos=topics_pos, topics_neg=topics_neg)
+
+
 app = FastAPI()
 
 
@@ -34,15 +49,31 @@ class SentimentRequest(BaseModel):
 async def predict_sentiment(request: SentimentRequest):
     reviews = request.reviews
     preprocessed_reviews = [preprocess(review) for review in reviews]
+    df_reviews = pd.DataFrame({'reviews': preprocessed_reviews})
 
+    if flag:
     # Предсказание тональности
-    if len(reviews) < 16:
-        predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
+        if len(reviews) < 16:
+            predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
+        else:
+            dataset = ClassificationDataset(df_reviews)
+            dataloader = get_loader(dataset, shuffle=False, batch_size=32)
+            predictions = test(bert_cls, dataloader, device)
     else:
-        dataset = ClassificationDataset(pd.DataFrame(preprocessed_reviews, columns=['reviews']))
-        dataloader = get_loader(dataset, shuffle=False, batch_size=32)
-        predictions = test(bert_cls, dataloader, device)
-
+        if len(reviews) < 16: 
+            predictions = [predict(preprocessed_reviews[i], bert_cls) for i in range(len(preprocessed_reviews))]
+        else:
+            dataset = ClassificationDataset(df_reviews)
+            dataloader = get_loader(dataset, shuffle=False, batch_size=32)
+            predictions_sa0 = test(bert_cls, dataloader, device)
+            sa1_model_preds = sa1_model(preprocessed_reviews)
+            sa1_model_preds = [name2int[sa1_model_preds[i]] for i in range(len(sa1_model_preds))]
+            sa1_model_preds = np.array(sa1_model_preds)
+            predictions_sa0 = np.array(predictions_sa0)
+            predictions = (sa1_model_preds + predictions_sa0-1) * 0.33/2
+            predictions = predictions.tolist()
+            print(predictions)
+    
     # Разделение отзывов на положительные и отрицательные
     positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 1]
     negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
@@ -66,24 +97,15 @@ async def predict_sentiment(request: SentimentRequest):
     if topics_pos is not None:
         topics_pos_str = "\n".join([", ".join(sublist) for sublist in topics_pos])
         topics_neg_str = "\n".join([", ".join(sublist) for sublist in topics_neg])
-        topics_pos_str = "\n".join([", ".join(sublist) for sublist in topics_pos])
-        topics_neg_str = "\n".join([", ".join(sublist) for sublist in topics_neg])
-
-        inputs = {
-            "topics_pos": topics_pos_str,
-            "topics_neg": topics_neg_str
-        }
-
-        template = """Положительные отзывы: {topics_pos}\n\nОтрицательные отзывы: {topics_neg}\n
-            На основании положительны и отрицательных отзывов определите ключевые драйверы роста (что нравится пользователям) и ключевые \
+        prompt = """Ты сотрудник маркетингового отдела. На основании положительных и отрицательных отзывов \
+            определи ключевые драйверы роста (что нравится пользователям) и ключевые \
             барьеры (что не нравится пользователям) развития продукта или услуг. \n
-            Разработай рекомендации для маркетингового отдела.\n
-            """
-        prompt = PromptTemplate.from_template(template)
-        iam_token = get_iam_token()
-        yandex_gpt = YandexGPT(iam_token=iam_token, folder_id="b1ge2***********", model_name="yandexgpt-lite", temperature=0.2)
-        llm_sequence = prompt | yandex_gpt
-        response = llm_sequence.invoke(inputs).strip()
+            Разработай рекомендации для маркетингового отдела. Старайся аргументировать свой ответ.
+        """
+        query = generate_query(topics_pos_str, topics_neg_str)
+        account = YandexGPTLite("b1***********", 'y0_Ag***********************')
+        response = account.create_completion(query, '0.6', system_prompt = prompt)
+        response = response.strip()
 
     return {
         "sentiments": predictions,
@@ -91,3 +113,5 @@ async def predict_sentiment(request: SentimentRequest):
         "negative_topics": topics_neg,
         "yandex_gpt_response": response
     }
+    
+

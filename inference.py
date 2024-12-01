@@ -23,7 +23,7 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 class ClassificationDataset(Dataset):
     def __init__(self, data):
         super().__init__()
-        self.text = data.reviews
+        self.text = data['reviews'].tolist()
         # self.target = data.target.to_list()
 
     def __getitem__(self, idx):

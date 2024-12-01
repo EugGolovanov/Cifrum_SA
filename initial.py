@@ -4,6 +4,7 @@ import nltk
 import os
 import numpy as np
 import random
+from deeppavlov import build_model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from torch import nn
 
@@ -31,14 +32,22 @@ def set_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
 
-
-def init():
+def init(flag):
     clear_cache()
     set_seed(42)
     nltk.download('stopwords')
     torch.manual_seed(42)
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #model_name = "blanchefort/rubert-base-cased-sentiment-rusentiment"
+    #tokenizer = AutoTokenizer.from_pretrained(model_name)
+    #with open('path2model/bert_model.pkl', 'rb') as f:
+        #bert_cls = pickle.load(f)
     bert_cls = AutoModelForSequenceClassification.from_pretrained('blanchefort/rubert-base-cased-sentiment-rusentiment', return_dict=True)
-    return bert_cls, device
+    if not (flag):
+        ner_model = build_model('ner_collection3_bert', download=True, install=True)
+        sa1_model = build_model('sentiment_twitter', download=True, install=True)
+        return ner_model, sa1_model, bert_cls, device
+    else:
+        return bert_cls, device
 

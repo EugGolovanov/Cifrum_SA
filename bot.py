@@ -9,7 +9,7 @@ import math
 import pandas as pd
 
 # Токен бота
-token = "7492******************"
+token = "749247**************"
 bot = Bot(token)
 dp = Dispatcher(bot)
 
