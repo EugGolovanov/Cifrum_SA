@@ -24,7 +24,6 @@ class ClassificationDataset(Dataset):
     def __init__(self, data):
         super().__init__()
         self.text = data['reviews'].tolist()
-        # self.target = data.target.to_list()
 
     def __getitem__(self, idx):
         text = self.text[idx]
@@ -37,7 +36,7 @@ class ClassificationDataset(Dataset):
 def collate_fn(batch):
     model_input = [text for text in batch]
     tok = tokenizer(model_input, padding=True, max_length=300, truncation=True, return_tensors='pt')
-    return {key: value.to(device) for key, value in tok.items()}  # Перемещение на устройство
+    return {key: value.to(device) for key, value in tok.items()}
 
 
 def get_loader(dataset, shuffle, batch_size):
@@ -64,7 +63,7 @@ def test(model, loader, device):
             pred.extend(outputs.logits.argmax(-1).detach().cpu().numpy().tolist())
     return pred
 
-def test_logits(model, loader, device):
+def test_logits(model, loader, device, fromHF):
     pred = []
     model = model.to(device)
     model.eval()
@@ -72,8 +71,12 @@ def test_logits(model, loader, device):
         pbar = tqdm(loader)
         for batch_idx, data in enumerate(pbar):
             data = {key: value.to(device) for key, value in data.items()}
-            outputs = model(**data)
-            pred.extend(outputs.logits.detach().cpu().numpy())
+            if not fromHF:
+                outputs = model(data)
+                pred.extend(torch.nn.functional.softmax(outputs).detach().cpu().numpy())
+            else:
+                outputs = model(**data)
+                pred.extend(torch.nn.functional.softmax(outputs.logits, dim=1).detach().cpu().numpy())
     return np.array(pred)
 
 def predict(text, bert_cls):
@@ -87,8 +90,8 @@ def predict_logits(text, bert_cls, fromHF):
     inputs = tokenizer(text, max_length=512, padding=True, truncation=True, return_tensors='pt')
     if fromHF:
         outputs = bert_cls(**inputs)
-        predicted = torch.nn.functional.softmax(outputs.logits, dim=1).numpy()
+        predicted = torch.nn.functional.softmax(outputs.logits, dim=1).detach().cpu().numpy()
     else:
         outputs = bert_cls(inputs)
-        predicted = torch.nn.functional.softmax(outputs).numpy()
+        predicted = torch.nn.functional.softmax(outputs).detach().cpu().numpy()
     return predicted

@@ -7,9 +7,10 @@ import aiofiles
 import aiohttp
 import math
 import pandas as pd
+import os
 
 # Токен бота
-token = "749247**************"
+token = "74924******************"
 bot = Bot(token)
 dp = Dispatcher(bot)
 
@@ -27,8 +28,10 @@ async def send_reviews_to_api(reviews: list[str]) -> dict:
                 "sentiments": response_data.get("sentiments", []),
                 "positive_topics": response_data.get("positive_topics", []),
                 "negative_topics": response_data.get("negative_topics", []),
-                "ner":response_data.get("ner", [])
-                "yandex_gpt_response": response_data.get("yandex_gpt_response", [])
+                "ner": response_data.get("NER", []),
+                "yandex_gpt_response": response_data.get("yandex_gpt_response", []),
+                "positive_phrases": response_data.get("positive_phrases", []),
+                "negative_phrases": response_data.get("negative_phrases", [])
             }
 
 
@@ -45,29 +48,25 @@ async def handle_file(message: Message):
     if document.file_name.endswith('.csv'):
         progress_message = await message.answer("🔄 Обрабатываю файл...")
 
-        # Скачиваем файл
         file = await bot.download_file_by_id(document.file_id)
         file_data = file.read()
 
-        # Сохраняем временный файл
         with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as temp_file:
             temp_file.write(file_data)
             temp_file_path = temp_file.name
 
         try:
-            # Читаем файл потоково
             reviews = []
             total_rows = 0
 
             async with aiofiles.open(temp_file_path, mode='r') as temp_file:
-                reader = pd.read_csv(temp_file_path, chunksize=1000)  # Читаем блоками по 1000 строк
+                reader = pd.read_csv(temp_file_path, chunksize=1000)
                 
                 for idx, chunk in enumerate(reader):
                     chunk_reviews = chunk['reviews'].tolist()
-                    reviews.extend(chunk_reviews)  # Добавляем в общий список
+                    reviews.extend(chunk_reviews)
                     total_rows += len(chunk_reviews)
 
-                    # Обновляем статус
                     progress = math.ceil((idx * 1000) / total_rows * 100)
                     await safe_edit_text(progress_message, f"🔄 Считываю данные: {progress}%")
 
@@ -77,20 +76,48 @@ async def handle_file(message: Message):
 
             # Обрабатываем ответ
             sentiments = api_response["sentiments"]
-            #positive_topics = api_response["positive_topics"]
-            #negative_topics = api_response["negative_topics"]
+            positive_topics = api_response["positive_topics"]
+            negative_topics = api_response["negative_topics"]
             yandex_gpt_response = api_response["yandex_gpt_response"]
-            ner_response = api_response['NER']
+            ner_response = api_response['ner']
+            positive_phrases = api_response["positive_phrases"]
+            negative_phrases = api_response["negative_phrases"]
 
             # Форматируем вывод
             response_message = (
-                f"Sentiment scores:\n{sentiments}\n\n"
-                # f"Positive Topics:\n{positive_topics}\n\n"
-                # f"Negative Topics:\n{negative_topics}\n\n"
-                f"Named Entities:\n{ner_response}\n\n"
+                f"Sentiment scores:\n{sentiments[:10]}\n\n"
+                #f"Positive Topics:\n{positive_topics}\n\n"
+                #f"Negative Topics:\n{negative_topics}\n\n"
+                #f"Named Entities:\n{ner_response}\n\n"
+                f"Positive phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) + "\n\n"
+                f"Negative phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) + "\n\n"
                 f"LLM_response:\n{yandex_gpt_response}"
             )
             await message.answer(response_message)
+            
+            response_message = (
+                f"Sentiment scores:\n{sentiments}\n\n"
+                f"{'-' * 50}\n"
+                f"Positive Topics:\n{positive_topics}\n\n"
+                f"{'-' * 50}\n"
+                f"Negative Topics:\n{negative_topics}\n\n"
+                f"{'-' * 50}\n"
+                f"Named Entities:\n{ner_response}\n\n"
+                f"{'-' * 50}\n"
+                f"Positive phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) + "\n\n"
+                f"{'-' * 50}\n"
+                f"Negative phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) + "\n\n"
+                f"{'-' * 50}\n"
+                f"LLM_response:\n{yandex_gpt_response}"
+            )
+            
+            temp_dir = tempfile.gettempdir()
+            result_file_path = os.path.join(temp_dir, "результаты_анализа.txt")
+            with open(result_file_path, mode="w") as result_file:
+                result_file.write(response_message)
+
+            await bot.send_document(chat_id=message.chat.id, document=open(result_file_path, "rb"))
+        
         except Exception as e:
             await safe_edit_text(progress_message, f"❌ Ошибка обработки файла: {e}")
     else:
@@ -105,7 +132,7 @@ async def handle_text(message: Message):
     sentiments = api_response["sentiments"]
     #positive_topics = api_response["positive_topics"]
     #negative_topics = api_response["negative_topics"]
-    yandex_gpt_response = api_response["yandex_gpt_response"]
+    #yandex_gpt_response = api_response["yandex_gpt_response"]
     ner_response = api_response['ner']
 
     # Форматируем вывод
@@ -113,8 +140,8 @@ async def handle_text(message: Message):
         f"Sentiment scores:\n{sentiments}\n\n"
         #f"Positive Topics:\n{positive_topics}\n\n"
         #f"Negative Topics:\n{negative_topics}\n\n"
-        f"Named Entities:\n{ner_response}\n\n"
-        f"LLM_response:\n{yandex_gpt_response}"
+        #f"Named Entities:\n{ner_response}\n\n"
+        #f"LLM_response:\n{yandex_gpt_response}"
     )
     await message.answer(response_message)
 
