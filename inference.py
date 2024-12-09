@@ -88,10 +88,12 @@ def predict(text, bert_cls):
 
 def predict_logits(text, bert_cls, fromHF):
     inputs = tokenizer(text, max_length=512, padding=True, truncation=True, return_tensors='pt')
+    inputs.to('cpu')
+    model = bert_cls.to('cpu')
     if fromHF:
-        outputs = bert_cls(**inputs)
+        outputs = model(**inputs)
         predicted = torch.nn.functional.softmax(outputs.logits, dim=1).detach().cpu().numpy()
     else:
-        outputs = bert_cls(inputs)
+        outputs = model(inputs)
         predicted = torch.nn.functional.softmax(outputs).detach().cpu().numpy()
     return predicted

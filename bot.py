@@ -10,7 +10,7 @@ import pandas as pd
 import os
 
 # Токен бота
-token = "74924******************"
+token = "74924775***********************"
 bot = Bot(token)
 dp = Dispatcher(bot)
 
@@ -48,6 +48,7 @@ async def handle_file(message: Message):
     if document.file_name.endswith('.csv'):
         progress_message = await message.answer("🔄 Обрабатываю файл...")
 
+        # Скачиваем файл
         file = await bot.download_file_by_id(document.file_id)
         file_data = file.read()
 
@@ -84,32 +85,59 @@ async def handle_file(message: Message):
             negative_phrases = api_response["negative_phrases"]
 
             # Форматируем вывод
-            response_message = (
-                f"Sentiment scores:\n{sentiments[:10]}\n\n"
-                #f"Positive Topics:\n{positive_topics}\n\n"
-                #f"Negative Topics:\n{negative_topics}\n\n"
-                #f"Named Entities:\n{ner_response}\n\n"
-                f"Positive phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) + "\n\n"
-                f"Negative phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) + "\n\n"
-                f"LLM_response:\n{yandex_gpt_response}"
-            )
+            response_message = "Оценка тональности отзывов:\n\n"
+
+            if sentiments:
+                response_message += f"{sentiments[:10]}....\n\n"
+            if positive_phrases is not None:
+                response_message += (
+                    "Фразы, часто встречающиеся в позитивных отзывах:\n\n" +
+                    "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) +
+                    "\n\n"
+                )
+            if negative_phrases is not None:
+                response_message += (
+                    "Фразы, часто встречающиеся в негативных отзывах:\n\n" +
+                    "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) +
+                    "\n\n"
+                )
+            if yandex_gpt_response is not None:
+                response_message += f"Рекомендации для маркетингового отдела:\n\n{yandex_gpt_response}"
             await message.answer(response_message)
             
-            response_message = (
-                f"Sentiment scores:\n{sentiments}\n\n"
-                f"{'-' * 50}\n"
-                f"Positive Topics:\n{positive_topics}\n\n"
-                f"{'-' * 50}\n"
-                f"Negative Topics:\n{negative_topics}\n\n"
-                f"{'-' * 50}\n"
-                f"Named Entities:\n{ner_response}\n\n"
-                f"{'-' * 50}\n"
-                f"Positive phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) + "\n\n"
-                f"{'-' * 50}\n"
-                f"Negative phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) + "\n\n"
-                f"{'-' * 50}\n"
-                f"LLM_response:\n{yandex_gpt_response}"
-            )
+            response_message = ""
+            if sentiments:
+                response_message += (
+                    f"Sentiment scores:\n{sentiments}\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if positive_topics is not None:
+                response_message += (
+                    f"Positive Topics:\n{positive_topics}\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if negative_topics is not None:
+                response_message += (
+                    f"Negative Topics:\n{negative_topics}\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if negative_phrases is not None:
+                response_message += (
+                    f"Negative phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in negative_phrases]) + "\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if positive_phrases is not None:
+                response_message += (
+                    f"Positive phrases:\n" + "\n".join([f"{item['phrase']}: {item['frequency']}" for item in positive_phrases]) + "\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if ner_response is not None:
+                response_message += (
+                    f"Named Entities:\n{ner_response}\n\n"
+                    f"{'-' * 50}\n"
+                )
+            if yandex_gpt_response is not None:
+                response_message += f"Рекомендации для маркетингового отдела:\n\n{yandex_gpt_response}"
             
             temp_dir = tempfile.gettempdir()
             result_file_path = os.path.join(temp_dir, "результаты_анализа.txt")
@@ -133,11 +161,11 @@ async def handle_text(message: Message):
     #positive_topics = api_response["positive_topics"]
     #negative_topics = api_response["negative_topics"]
     #yandex_gpt_response = api_response["yandex_gpt_response"]
-    ner_response = api_response['ner']
+    #ner_response = api_response['ner']
 
     # Форматируем вывод
     response_message = (
-        f"Sentiment scores:\n{sentiments}\n\n"
+        f"Оценка тональности отзыва:\n{sentiments}\n\n"
         #f"Positive Topics:\n{positive_topics}\n\n"
         #f"Negative Topics:\n{negative_topics}\n\n"
         #f"Named Entities:\n{ner_response}\n\n"

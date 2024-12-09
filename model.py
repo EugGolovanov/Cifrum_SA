@@ -9,7 +9,7 @@ from yandexgptlite import YandexGPTLite
 from process import process_ner, preprocess, int2name
 from nltk import word_tokenize, ngrams
 from collections import Counter
-
+from time import time
 flag = False
 if flag:
     bert_cls, device = init(flag)
@@ -22,7 +22,7 @@ def generate_query(topics_pos, topics_neg):
     template = """Положительные отзывы: {topics_pos}\n\nОтрицательные отзывы: {topics_neg}"""
     return template.format(topics_pos=topics_pos, topics_neg=topics_neg)
 
-# Извлекаем наиболее частые n-граммы из списка отзывов.
+#  Извлекаем наиболее частые n-граммы из списка отзывов.
 def extract_common_phrases(reviews, n=3, top_n=10):
     text = " ".join(reviews)
     tokens = word_tokenize(preprocess(text.lower()))
@@ -47,10 +47,8 @@ async def predict_sentiment(request: SentimentRequest):
     if len(reviews) < 16:
             predictions_1 = np.array( df_reviews['reviews'].apply(lambda x: predict_logits(x, bert_cls, False)))
             predictions_2 = np.array( df_reviews['reviews'].apply(lambda x: predict_logits(x, sa1_model, True)))
-            if len(reviews) == 1:
-                predictions = [np.argmax(predictions_1 + predictions_2)]
-            else:
-                predictions = [np.argmax(predictions_1 + predictions_2, axis=1)]
+            combined_data = np.vstack(predictions_1 + predictions_2)
+            predictions = np.argmax(combined_data, axis=1).tolist()
             positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
             negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 0]
     else:
@@ -62,7 +60,7 @@ async def predict_sentiment(request: SentimentRequest):
             positive_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 2]
             negative_reviews = [preprocessed_reviews[i] for i in range(len(predictions)) if predictions[i] == 0]
     predictions = [int2name[i] for i in predictions]
-    
+
     # NER
     NER_preds = ner_model(preprocessed_reviews)
     NER_preds = process_ner(NER_preds)
@@ -78,16 +76,16 @@ async def predict_sentiment(request: SentimentRequest):
         topic_model_pos = BERTopic(language="multilingual")
         topic_model_pos.fit_transform(positive_reviews)
         topics_pos = topic_model_pos.get_topic_info()['Representative_Docs'][:7].values.tolist()
-        positive_common_phrases = extract_common_phrases(positive_reviews, n=4, top_n=6)
+        positive_common_phrases = extract_common_phrases(positive_reviews, n=4, top_n=4)
         positive_phrases = [{"phrase": " ".join(phrase), "frequency": freq} for phrase, freq in positive_common_phrases]
         
     if len(negative_reviews) > 15:
         topic_model_neg = BERTopic(language="multilingual")
         topic_model_neg.fit_transform(negative_reviews)
         topics_neg = topic_model_neg.get_topic_info()['Representative_Docs'][:7].values.tolist()
-        negative_common_phrases = extract_common_phrases(negative_reviews, n=4, top_n=6)
+        negative_common_phrases = extract_common_phrases(negative_reviews, n=4, top_n=4)
         negative_phrases = [{"phrase": " ".join(phrase), "frequency": freq} for phrase, freq in negative_common_phrases]
-        
+ 
      # Интеграция с Yandex GPT
     if topics_pos is not None:
         topics_pos_str = "\n".join([", ".join(sublist) for sublist in topics_pos])
@@ -97,8 +95,9 @@ async def predict_sentiment(request: SentimentRequest):
             барьеры (что не нравится пользователям) развития продукта или услуг. \n
             Разработай рекомендации для маркетингового отдела. Старайся аргументировать свой ответ.
         """
+
         query = generate_query(topics_pos_str, topics_neg_str)
-        account = YandexGPTLite("b1g*****************************", 'y0_AgA*************************')
+        account = YandexGPTLite("b1ge****************", 'y0_AgAAAABU****************************')
         response = account.create_completion(query, '0.6', system_prompt = prompt)
         response = response.strip()
         
